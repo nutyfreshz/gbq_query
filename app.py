@@ -6,10 +6,13 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from google.cloud import bigquery
 import pandas as pd
-import json
 
 # Streamlit app title
+st.set_page_config(page_title="BigQuery Data Query", layout="wide")
 st.title("BigQuery Data Query with Multi-Column Conditions")
+
+# Sidebar for user login and file upload
+st.sidebar.header("Login and JSON Upload")
 
 # Link to the gspread JSON file (service account key)
 json_url = "https://drive.google.com/uc?export=download&id=1h36YKL7ZalJzEVnPF6AXZaV5ugriSYbs"
@@ -41,12 +44,12 @@ sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1PjIsU5dqFQf2
 worksheet = sheet.get_worksheet(0)
 data = worksheet.get_all_records()
 
-# Streamlit UI for login
-st.subheader("Login to access BigQuery Data Query")
+# Sidebar - Input for user and password
+username = st.sidebar.text_input("Username")
+password = st.sidebar.text_input("Password", type="password")
 
-# Input for user and password
-username = st.text_input("Username")
-password = st.text_input("Password", type="password")
+# Sidebar - File uploader for .json file (for BigQuery)
+uploaded_file = st.sidebar.file_uploader("Upload your service account .json file", type=["json"])
 
 # Function to authenticate user using Google Sheets data
 def authenticate_user(username, password):
@@ -55,23 +58,12 @@ def authenticate_user(username, password):
             return True
     return False
 
-# Authenticate if user provides credentials
+# Sidebar - Authenticate if user provides credentials
 if authenticate_user(username, password):
-    st.success("Login successful!")
+    st.sidebar.success("Login successful!")
     
-    # File uploader for .json file (for BigQuery)
-    uploaded_file = st.file_uploader("Upload your service account .json file", type=["json"])
-
-    if uploaded_file is not None:
-        # Save the uploaded .json file temporarily
-        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-            temp_file.write(uploaded_file.read())
-            service_account_key_path = temp_file.name
-
-        # Set the environment variable for Google Cloud credentials
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = service_account_key_path
-
-        st.success("Service account JSON file uploaded successfully")
+    # Main panel for the SQL Query and BigQuery Data Query
+    st.header("BigQuery Data Query Interface")
 
     # Initialize BigQuery client only if credentials are available
     if uploaded_file is not None:
@@ -166,8 +158,6 @@ if authenticate_user(username, password):
 
             except Exception as e:
                 st.error(f"Error executing query: {e}")
-    else:
-        st.warning("Please upload a Google Cloud service account .json file to proceed.")
 
 else:
-    st.warning("Invalid username or password. Please try again.")
+    st.sidebar.warning("Invalid username or password. Please try again.")
