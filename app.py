@@ -49,7 +49,7 @@ if uploaded_file is not None:
                 df = pd.DataFrame([dict(row) for row in results])
                 
                 # Display results in Streamlit
-                st.write(df)
+                st.write(df.head())
                 
                 # Button to download CSV
                 if not df.empty:
