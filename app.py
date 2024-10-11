@@ -20,7 +20,7 @@ if "login" not in st.session_state:
     st.session_state.login = False
 
 # Function to authenticate user against Google Sheet
-def authenticate_user(username, password):
+def authenticate_user(username, password, uploaded_file):
     # Define the scope for Google Sheets API
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
@@ -30,18 +30,18 @@ def authenticate_user(username, password):
     )
     client = gspread.authorize(creds)
 
-    # Open the Google Sheet
-    sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1PjIsU5dqFQf2avGP8coQB4fn_9z9qob-tP1NsjtWmHA/edit?usp=sharing")
+    # Open the Google Sheet by URL
+    sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1PjIsU5dqFQf2avGP8coQB4fn_9z9qob-tP1NsjtWmHA/edit?gid=0")
     worksheet = sheet.get_worksheet(0)
     
-    # Fetch all the data
+    # Fetch all rows of the sheet (assuming first column is "username" and second is "password")
     data = worksheet.get_all_records()
-    
-    # Check if the username and password match any row
+
+    # Iterate over records and check for matching username and password
     for record in data:
-        if record["username"] == username and record["password"] == password:
-            return True
-    return False
+        if record.get("username") == username and record.get("password") == password:
+            return True  # Credentials match
+    return False  # No match found
 
 # If the service account JSON is uploaded
 if uploaded_file is not None:
