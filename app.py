@@ -34,25 +34,25 @@ if uploaded_file is not None:
 if uploaded_file is not None:
     client = bigquery.Client()
 
-    # Initial SQL query without any conditions
-    base_query = """
-    SELECT * 
+    # Get a sample of the data (LIMIT 5 rows) to extract the columns
+    sample_query = """
+    SELECT *
     FROM `cdg-mark-cust-prd.CAS_DS_DATABASE.ca_ds_customer_info`
     WHERE 1=1
+    LIMIT 5
     """
+    
+    # Run the query to get the sample data
+    sample_job = client.query(sample_query)
+    sample_results = sample_job.result()
 
-    # Get available columns from the table
-    columns_query = """
-    SELECT column_name
-    FROM `cdg-mark-cust-prd.INFORMATION_SCHEMA.COLUMNS`
-    WHERE table_name = 'ca_ds_customer_info'
-    ORDER BY column_name
-    """
-    columns_job = client.query(columns_query)
-    columns_results = columns_job.result()
-    columns_list = [row.column_name for row in columns_results]
+    # Convert the results to a DataFrame
+    cols_df = pd.DataFrame([dict(row) for row in sample_results])
 
-    # Column dropdown for user to select
+    # Extract the column names from the DataFrame
+    columns_list = cols_df.columns.tolist()
+
+    # Dropdown for user to select a column
     selected_column = st.selectbox("Select a column to add a condition:", columns_list)
 
     # Get distinct values from the selected column
@@ -71,9 +71,18 @@ if uploaded_file is not None:
     # Dynamically build the WHERE clause if a value is selected
     if selected_value:
         condition = f"AND {selected_column} = '{selected_value}'"
-        full_query = base_query + " " + condition
+        full_query = f"""
+        SELECT *
+        FROM `cdg-mark-cust-prd.CAS_DS_DATABASE.ca_ds_customer_info`
+        WHERE 1=1
+        {condition}
+        """
     else:
-        full_query = base_query  # No conditions added
+        full_query = """
+        SELECT *
+        FROM `cdg-mark-cust-prd.CAS_DS_DATABASE.ca_ds_customer_info`
+        WHERE 1=1
+        """  # No conditions added
 
     # Display the full SQL query
     st.write("Constructed SQL Query:")
