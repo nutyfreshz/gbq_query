@@ -6,6 +6,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from google.cloud import bigquery
 import pandas as pd
+from datetime import datetime
 
 # Streamlit app title
 st.set_page_config(page_title="BigQuery Data Query", layout="wide")
@@ -57,6 +58,12 @@ def authenticate_user(username, password):
         if record["username"] == username and record["password"] == password:
             return True
     return False
+
+# Function to log user actions (query run or CSV download)
+def log_user_action(username, action):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    worksheet.append_row([username, action, now])
+    st.info(f"Action '{action}' logged successfully.")
 
 # Sidebar - Authenticate if user provides credentials
 if authenticate_user(username, password):
@@ -143,6 +150,9 @@ if authenticate_user(username, password):
                 
                 # Display results in Streamlit
                 st.write(df.head())
+
+                # Log the query run action
+                log_user_action(username, "Run Query")
                 
                 # Button to download CSV
                 if not df.empty:
@@ -158,6 +168,10 @@ if authenticate_user(username, password):
 
             except Exception as e:
                 st.error(f"Error executing query: {e}")
+
+        # If the CSV download button is clicked
+        if st.button("Download CSV"):
+            log_user_action(username, "Download CSV")
 
 else:
     st.sidebar.warning("Invalid username or password. Please try again.")
