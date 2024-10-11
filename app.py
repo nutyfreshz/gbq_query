@@ -50,6 +50,19 @@ if uploaded_file is not None:
                 
                 # Display results in Streamlit
                 st.write(df)
+                
+                # Button to download CSV
+                if not df.empty:
+                    csv = df.to_csv(index=False)
+                    st.download_button(
+                        label="Download CSV",
+                        data=csv,
+                        file_name="query_results.csv",
+                        mime="text/csv"
+                    )
+                else:
+                    st.warning("No results to download.")
+
             except Exception as e:
                 st.error(f"Error executing query: {e}")
         else:
