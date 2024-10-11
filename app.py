@@ -40,10 +40,14 @@ scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 creds = ServiceAccountCredentials.from_json_keyfile_name(service_account_key_path, scope)
 client = gspread.authorize(creds)
 
-# Access Google Sheet with user and password
-sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1PjIsU5dqFQf2avGP8coQB4fn_9z9qob-tP1NsjtWmHA/edit?gid=0")
-worksheet = sheet.get_worksheet(0)
-data = worksheet.get_all_records()
+# Access Google Sheet with user and password (user_pass sheet)
+user_pass_sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1PjIsU5dqFQf2avGP8coQB4fn_9z9qob-tP1NsjtWmHA/edit?gid=0")
+user_pass_worksheet = user_pass_sheet.get_worksheet(0)
+data = user_pass_worksheet.get_all_records()
+
+# Access the new sheet for logging user actions
+log_sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1UJ89lPfLe2IDtRWOpukdfAzAwK7Cj0Zg2I8KTCDqybk/edit?usp=sharing")
+log_worksheet = log_sheet.get_worksheet(0)
 
 # Sidebar - Input for user and password
 username = st.sidebar.text_input("Username")
@@ -62,7 +66,7 @@ def authenticate_user(username, password):
 # Function to log user actions (query run or CSV download)
 def log_user_action(username, action):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    worksheet.append_row([username, action, now])
+    log_worksheet.append_row([username, action, now])
     st.info(f"Action '{action}' logged successfully.")
 
 # Sidebar - Authenticate if user provides credentials
