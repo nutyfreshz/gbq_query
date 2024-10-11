@@ -14,7 +14,7 @@ from datetime import date
 import numpy as np
 
 # Streamlit app title
-st.title("BigQuery Data Query with Streamlit")
+st.title("BigQuery Data Query with Multi-Column Conditions")
 
 # File uploader for .json file
 uploaded_file = st.file_uploader("Upload your service account .json file", type=["json"])
@@ -52,37 +52,45 @@ if uploaded_file is not None:
     # Extract the column names from the DataFrame
     columns_list = cols_df.columns.tolist()
 
-    # Dropdown for user to select a column
-    selected_column = st.selectbox("Select a column to add a condition:", columns_list)
+    # Multi-column dropdown for user to select multiple columns
+    selected_columns = st.multiselect("Select columns to add conditions:", columns_list)
 
-    # Get distinct values from the selected column
-    distinct_values_query = f"""
-    SELECT DISTINCT {selected_column}
-    FROM `cdg-mark-cust-prd.CAS_DS_DATABASE.ca_ds_customer_info`
-    ORDER BY 1 ASC
-    """
-    distinct_values_job = client.query(distinct_values_query)
-    distinct_values_results = distinct_values_job.result()
-    distinct_values = [row[selected_column] for row in distinct_values_results]
+    # Dictionary to store selected column and its corresponding value dropdown
+    selected_values_dict = {}
 
-    # Dropdown for selecting value from the chosen column
-    selected_value = st.selectbox(f"Select a value for {selected_column}:", distinct_values)
-
-    # Dynamically build the WHERE clause if a value is selected
-    if selected_value:
-        condition = f"AND {selected_column} = '{selected_value}'"
-        full_query = f"""
-        SELECT *
+    # For each selected column, display a corresponding dropdown for values
+    for column in selected_columns:
+        # Get distinct values for the selected column
+        distinct_values_query = f"""
+        SELECT DISTINCT {column}
         FROM `cdg-mark-cust-prd.CAS_DS_DATABASE.ca_ds_customer_info`
-        WHERE 1=1
-        {condition}
+        ORDER BY 1 ASC
         """
+        distinct_values_job = client.query(distinct_values_query)
+        distinct_values_results = distinct_values_job.result()
+        distinct_values = [row[column] for row in distinct_values_results]
+
+        # Dropdown to select a value for the column
+        selected_values_dict[column] = st.selectbox(f"Select a value for {column}:", distinct_values)
+
+    # Construct SQL query dynamically based on selected columns and values
+    base_query = """
+    SELECT *
+    FROM `cdg-mark-cust-prd.CAS_DS_DATABASE.ca_ds_customer_info`
+    WHERE 1=1
+    """
+    
+    # Build the conditions for the selected columns and values
+    conditions = []
+    for column, value in selected_values_dict.items():
+        if value:  # Only add condition if a value is selected
+            conditions.append(f"{column} = '{value}'")
+    
+    # If conditions are added, append them to the base query
+    if conditions:
+        full_query = base_query + " AND " + " AND ".join(conditions)
     else:
-        full_query = """
-        SELECT *
-        FROM `cdg-mark-cust-prd.CAS_DS_DATABASE.ca_ds_customer_info`
-        WHERE 1=1
-        """  # No conditions added
+        full_query = base_query  # No conditions if none selected
 
     # Display the full SQL query
     st.write("Constructed SQL Query:")
