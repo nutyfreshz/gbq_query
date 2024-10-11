@@ -74,9 +74,13 @@ with st.sidebar:
 
             st.success("Service account JSON file uploaded successfully")
 
-# Main section: Data context and query interface
-if authenticate_user(username, password):
-    if uploaded_file is not None:
+# Main section: Ensure user login and JSON upload before using the app
+if not authenticate_user(username, password):
+    st.warning("Please login and upload the service account JSON file to proceed.")
+else:
+    if uploaded_file is None:
+        st.warning("Please upload the service account JSON file to proceed.")
+    else:
         # Initialize BigQuery client only if credentials are available
         client = bigquery.Client()
 
@@ -171,7 +175,3 @@ if authenticate_user(username, password):
 
             except Exception as e:
                 st.error(f"Error executing query: {e}")
-    else:
-        st.warning("Please upload a Google Cloud service account .json file to proceed.")
-else:
-    st.warning("Invalid username or password. Please try again.")
