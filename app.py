@@ -101,10 +101,10 @@ if authenticate_user(username, password):
         # Multi-column dropdown for user to select multiple columns
         selected_columns = st.multiselect("Select columns to add conditions:", columns_list)
 
-        # Dictionary to store selected column and its corresponding value dropdown
+        # Dictionary to store selected column and its corresponding values dropdown
         selected_values_dict = {}
 
-        # For each selected column, display a corresponding dropdown for values
+        # For each selected column, display a corresponding multiselect for values
         for column in selected_columns:
             # Get distinct values for the selected column
             distinct_values_query = f"""
@@ -116,8 +116,8 @@ if authenticate_user(username, password):
             distinct_values_results = distinct_values_job.result()
             distinct_values = [row[column] for row in distinct_values_results]
 
-            # Dropdown to select a value for the column
-            selected_values_dict[column] = st.selectbox(f"Select a value for {column}:", distinct_values)
+            # Multiselect to select multiple values for the column
+            selected_values_dict[column] = st.multiselect(f"Select values for {column}:", distinct_values)
 
         # Construct SQL query dynamically based on selected columns and values
         base_query = """
@@ -125,13 +125,15 @@ if authenticate_user(username, password):
         FROM `cdg-mark-cust-prd.CAS_DS_DATABASE.ca_ds_customer_info`
         WHERE 1=1
         """
-        
+
         # Build the conditions for the selected columns and values
         conditions = []
-        for column, value in selected_values_dict.items():
-            if value:  # Only add condition if a value is selected
-                conditions.append(f"{column} = '{value}'")
-        
+        for column, values in selected_values_dict.items():
+            if values:  # Only add condition if values are selected
+                # Use IN clause to allow multiple values
+                values_str = ", ".join([f"'{value}'" for value in values])
+                conditions.append(f"{column} IN ({values_str})")
+
         # If conditions are added, append them to the base query
         if conditions:
             full_query = base_query + " AND " + " AND ".join(conditions)
