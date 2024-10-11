@@ -4,8 +4,6 @@ import pandas as pd
 import json
 import tempfile
 import os
-import subprocess
-from google.oauth2 import service_account
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
@@ -55,7 +53,7 @@ if uploaded_file is not None:
 
         # Button to validate credentials
         if st.button("Login"):
-            if authenticate_user(username, password):
+            if authenticate_user(username, password, uploaded_file):
                 st.session_state.login = True
                 st.success("Login successful! You can now query the database.")
             else:
