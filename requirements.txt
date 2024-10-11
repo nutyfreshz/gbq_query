@@ -6,3 +6,4 @@ datetime
 numpy==1.26.4
 pandas
 gspread
+oauth2client
