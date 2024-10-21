@@ -84,10 +84,29 @@ else:
         # Initialize BigQuery client only if credentials are available
         client = bigquery.Client()
 
+        # Get schema metadata for the target table
+        def get_table_schema(project_id, dataset_id, table_id):
+            table_ref = client.dataset(dataset_id).table(table_id)
+            table = client.get_table(table_ref)
+            return table.schema
+
+        # Specify project, dataset, and table
+        project_id = "cdg-mark-cust-prd"
+        dataset_id = "CAS_DS_DATABASE"
+        table_id = "ca_ds_customer_info"
+
+        # Fetch table schema
+        schema = get_table_schema(project_id, dataset_id, table_id)
+
+        # Create a dictionary to hold column names and their data types
+        column_type_dict = {}
+        for field in schema:
+            column_type_dict[field.name] = field.field_type
+
         # Get a sample of the data (LIMIT 5 rows) to extract the columns
-        sample_query = """
+        sample_query = f"""
         SELECT *
-        FROM `cdg-mark-cust-prd.CAS_DS_DATABASE.ca_ds_customer_info`
+        FROM `{project_id}.{dataset_id}.{table_id}`
         WHERE 1=1
         LIMIT 5
         """
@@ -99,9 +118,8 @@ else:
         # Convert the results to a DataFrame
         cols_df = pd.DataFrame([dict(row) for row in sample_results])
 
-        # Extract the column names from the DataFrame and their dtypes
+        # Extract the column names from the DataFrame
         columns_list = cols_df.columns.tolist()
-        columns_dtypes = cols_df.dtypes
 
         # Multi-column dropdown for user to select multiple columns
         selected_columns = st.multiselect("Select columns to add conditions:", columns_list)
@@ -111,8 +129,9 @@ else:
 
         # For each selected column, display a corresponding multiselect for values or range input for numerical columns
         for column in selected_columns:
-            if pd.api.types.is_numeric_dtype(columns_dtypes[column]):
-                # If column is numerical, provide range input
+            # Check if the column is numeric based on schema, and handle range input
+            if column_type_dict.get(column) in ['INTEGER', 'FLOAT', 'NUMERIC', 'BIGNUMERIC']:
+                # If column is numeric, provide range input
                 min_val = st.number_input(f"Enter minimum value for {column}:", value=float(cols_df[column].min()), key=f"min_{column}")
                 max_val = st.number_input(f"Enter maximum value for {column}:", value=float(cols_df[column].max()), key=f"max_{column}")
                 selected_values_dict[column] = (min_val, max_val)
@@ -120,7 +139,7 @@ else:
                 # For non-numerical (categorical) columns, provide a dropdown
                 distinct_values_query = f"""
                 SELECT DISTINCT {column}
-                FROM `cdg-mark-cust-prd.CAS_DS_DATABASE.ca_ds_customer_info`
+                FROM `{project_id}.{dataset_id}.{table_id}`
                 ORDER BY 1 ASC
                 """
                 distinct_values_job = client.query(distinct_values_query)
@@ -131,87 +150,16 @@ else:
                 selected_values_dict[column] = st.multiselect(f"Select values for {column}:", distinct_values)
 
         # Construct SQL query dynamically based on selected columns and values
-        base_query = """
-        SELECT member_number
-                , birth_month
-                , age_group
-                , gender
-                , customer_type
-                , nationality
-                , kids_stage
-                , segment
-                , subsegment
-                , cenfinity_status
-                , wealth_segment
-                , life_stages
-                , shopping_cycle
-                , clv_year_stay
-                , omni_status_l1y
-                , ds_nel_type
-                , ds_customer_status
-                , cds_nel_type
-                , cds_customer_status
-                , rbs_nel_type
-                , rbs_customer_status
-                , offline_nel_type
-                , offline_customer_status
-                , scc_nel_type
-                , scc_customer_status
-                , col_nel_type
-                , col_customer_status
-                , most_visit_location
-                , most_visit_province
-                , most_visit_subregion
-                , point_lover_segment
-                , tier_balance
-                , beauty_luxury_segment
-                , beauty_relevance_segment
-                , fashion_luxury_segment
-                , fashion_relevance_segment
-                , home_event_segment
-                , online_shopping_affinity
-                , most_freq_creditcard_bank
-                , the1_creditcard_face
-                , crc_active_l1y
-                , total_crc_spend_l1y
-                , total_crc_visit_l1y
-                , crc_ranking_2023
-                , rfm_segment_ds
-                , rfm_segment_cds
-                , rfm_segment_rbs
-                , commu_cds
-                , is_send_sms_eng_cds
-                , is_send_sms_thai_cds
-                , is_email_cds
-                , is_line_cds
-                , line_cds_uid
-                , is_call_cds
-                , commu_rbs
-                , is_send_sms_eng_rbs
-                , is_send_sms_thai_rbs
-                , is_email_rbs
-                , is_line_rbs
-                , line_rbs_uid
-                , is_call_rbs
-                , commu_t1
-                , is_send_sms_eng
-                , is_send_sms_thai
-                , is_email
-                , is_mobile
-                , have_app
-                , the1_app_user
-                , have_col_app
-                , is_ps
-                , ps_bu_branch
-                , ps_name
-        FROM `cdg-mark-cust-prd.CAS_DS_DATABASE.ca_ds_customer_info`
+        base_query = f"""
+        SELECT *
+        FROM `{project_id}.{dataset_id}.{table_id}`
         WHERE 1=1
         """
 
         # Build the conditions for the selected columns and values
         conditions = []
         for column, values in selected_values_dict.items():
-            if pd.api.types.is_numeric_dtype(columns_dtypes[column]):
+            if column_type_dict.get(column) in ['INTEGER', 'FLOAT', 'NUMERIC', 'BIGNUMERIC']:
                 # Use range condition for numerical columns
                 min_val, max_val = values
                 conditions.append(f"{column} BETWEEN {min_val} AND {max_val}")
