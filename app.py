@@ -99,29 +99,36 @@ else:
         # Convert the results to a DataFrame
         cols_df = pd.DataFrame([dict(row) for row in sample_results])
 
-        # Extract the column names from the DataFrame
+        # Extract the column names from the DataFrame and their dtypes
         columns_list = cols_df.columns.tolist()
+        columns_dtypes = cols_df.dtypes
 
         # Multi-column dropdown for user to select multiple columns
         selected_columns = st.multiselect("Select columns to add conditions:", columns_list)
 
-        # Dictionary to store selected column and its corresponding values dropdown
+        # Dictionary to store selected column and its corresponding values dropdown or range inputs
         selected_values_dict = {}
 
-        # For each selected column, display a corresponding multiselect for values
+        # For each selected column, display a corresponding multiselect for values or range input for numerical columns
         for column in selected_columns:
-            # Get distinct values for the selected column
-            distinct_values_query = f"""
-            SELECT DISTINCT {column}
-            FROM `cdg-mark-cust-prd.CAS_DS_DATABASE.ca_ds_customer_info`
-            ORDER BY 1 ASC
-            """
-            distinct_values_job = client.query(distinct_values_query)
-            distinct_values_results = distinct_values_job.result()
-            distinct_values = [row[column] for row in distinct_values_results]
+            if pd.api.types.is_numeric_dtype(columns_dtypes[column]):
+                # If column is numerical, provide range input
+                min_val = st.number_input(f"Enter minimum value for {column}:", value=float(cols_df[column].min()), key=f"min_{column}")
+                max_val = st.number_input(f"Enter maximum value for {column}:", value=float(cols_df[column].max()), key=f"max_{column}")
+                selected_values_dict[column] = (min_val, max_val)
+            else:
+                # For non-numerical (categorical) columns, provide a dropdown
+                distinct_values_query = f"""
+                SELECT DISTINCT {column}
+                FROM `cdg-mark-cust-prd.CAS_DS_DATABASE.ca_ds_customer_info`
+                ORDER BY 1 ASC
+                """
+                distinct_values_job = client.query(distinct_values_query)
+                distinct_values_results = distinct_values_job.result()
+                distinct_values = [row[column] for row in distinct_values_results]
 
-            # Multiselect to select multiple values for the column
-            selected_values_dict[column] = st.multiselect(f"Select values for {column}:", distinct_values)
+                # Multiselect to select multiple values for the column
+                selected_values_dict[column] = st.multiselect(f"Select values for {column}:", distinct_values)
 
         # Construct SQL query dynamically based on selected columns and values
         base_query = """
@@ -204,10 +211,15 @@ else:
         # Build the conditions for the selected columns and values
         conditions = []
         for column, values in selected_values_dict.items():
-            if values:  # Only add condition if values are selected
-                # Use IN clause to allow multiple values
-                values_str = ", ".join([f"'{value}'" for value in values])
-                conditions.append(f"{column} IN ({values_str})")
+            if pd.api.types.is_numeric_dtype(columns_dtypes[column]):
+                # Use range condition for numerical columns
+                min_val, max_val = values
+                conditions.append(f"{column} BETWEEN {min_val} AND {max_val}")
+            else:
+                # Use IN clause for categorical columns
+                if values:  # Only add condition if values are selected
+                    values_str = ", ".join([f"'{value}'" for value in values])
+                    conditions.append(f"{column} IN ({values_str})")
 
         # If conditions are added, append them to the base query
         if conditions:
