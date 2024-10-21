@@ -10,7 +10,7 @@ import pandas as pd
 # Streamlit app title
 st.title("BigQuery Data Query with Multi-Column Conditions")
 
-# Link to the gspread JSON file (service account key) from Google Drive
+# Link to the gspread JSON file (service account key)
 json_url = "https://drive.google.com/uc?export=download&id=1fxHiUlOBvRGkWzrjuHl74fZ_0pZ13pxB"
 
 # Download the gspread JSON file automatically on app start
@@ -40,7 +40,7 @@ sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1PjIsU5dqFQf2
 worksheet = sheet.get_worksheet(0)
 data = worksheet.get_all_records()
 
-# Sidebar UI for login and JSON download (removes file uploader)
+# Sidebar UI for login
 with st.sidebar:
     st.subheader("Login to access BigQuery Data Query")
 
@@ -58,9 +58,6 @@ with st.sidebar:
     # Authenticate if user provides credentials
     if authenticate_user(username, password):
         st.success("Login successful!")
-        
-        # Set the environment variable for Google Cloud credentials
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = service_account_key_path
 
 # Main section: Ensure user login before using the app
 if not authenticate_user(username, password):
