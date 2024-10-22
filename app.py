@@ -54,6 +54,9 @@ with st.sidebar:
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
+    # Variable to track if the login action is already logged
+    login_logged = False
+
     # Function to authenticate user using Google Sheets data
     def authenticate_user(username, password):
         for record in data:
@@ -70,7 +73,9 @@ with st.sidebar:
     # Authenticate if user provides credentials
     if authenticate_user(username, password):
         st.success("Login successful!")
-        log_user_action(username, "Login")
+        if not login_logged:
+            log_user_action(username, "Login")
+            login_logged = True  # Ensure login is logged only once
         
         # File uploader for .json file (for BigQuery)
         uploaded_file = st.file_uploader("Upload your service account .json file", type=["json"])
@@ -209,17 +214,16 @@ else:
                 # Display results in Streamlit
                 st.write(df.head())
                 
-                # Button to download CSV without tracking
-                if not df.empty:
+                # Button to download the results as a CSV
+                if st.button("Download CSV"):
+                    # Convert DataFrame to CSV
                     csv = df.to_csv(index=False)
-                    st.download_button(
-                        label="Download CSV",
-                        data=csv,
-                        file_name="query_results.csv",
-                        mime="text/csv"
-                    )
-                else:
-                    st.warning("No results to download.")
+                    
+                    # Provide the CSV file as a download link
+                    st.download_button("Download CSV", csv, "query_results.csv", "text/csv")
+                    
+                    # Log the CSV download action
+                    log_user_action(username, "Downloaded CSV")
 
             except Exception as e:
-                st.error(f"Error executing query: {e}")
+                st.error(f"Error executing query: {str(e)}")
