@@ -61,26 +61,18 @@ with st.sidebar:
                 return True
         return False
 
-    # Function to log user action to the Google Sheet with GMT+7 timezone
+    # Function to log specific user actions (Login, Query, CSV Download) with GMT+7 timezone
     def log_user_action(username, action):
-        gmt_plus_7 = timezone(timedelta(hours=7))
-        timestamp = datetime.now(gmt_plus_7).strftime("%Y-%m-%d %H:%M:%S")
-        tracker_worksheet.append_row([username, action, timestamp])
+        if action in ["Login", "Ran Query", "Downloaded CSV"]:
+            gmt_plus_7 = timezone(timedelta(hours=7))
+            timestamp = datetime.now(gmt_plus_7).strftime("%Y-%m-%d %H:%M:%S")
+            tracker_worksheet.append_row([username, action, timestamp])
 
-    # Track login in session state to avoid duplicate login logs
-    if "logged_in" not in st.session_state:
-        st.session_state["logged_in"] = False
-
-    # Track CSV download in session state
-    if "csv_downloaded" not in st.session_state:
-        st.session_state["csv_downloaded"] = False
-
-    # Authenticate if user provides credentials and hasn't logged in yet
+    # Authenticate if user provides credentials
     if authenticate_user(username, password):
-        if not st.session_state["logged_in"]:
-            st.success("Login successful!")
-            st.session_state["logged_in"] = True  # Set the login flag
-
+        st.success("Login successful!")
+        log_user_action(username, "Login")  # Log login action
+        
         # File uploader for .json file (for BigQuery)
         uploaded_file = st.file_uploader("Upload your service account .json file", type=["json"])
 
@@ -98,7 +90,7 @@ with st.sidebar:
         st.warning("Please login to proceed.")
 
 # Main section: Ensure user login and JSON upload before using the app
-if not st.session_state["logged_in"]:
+if not authenticate_user(username, password):
     st.warning("Please login and upload the service account JSON file to proceed.")
 else:
     if uploaded_file is None:
@@ -210,7 +202,7 @@ else:
                 results = query_job.result()
 
                 # Log the query execution action
-                log_user_action(username, "Ran Query")
+                log_user_action(username, "Ran Query")  # Log "Ran Query" action
 
                 # Convert results to a DataFrame
                 df = pd.DataFrame([dict(row) for row in results])
@@ -218,21 +210,17 @@ else:
                 # Display results in Streamlit
                 st.write(df.head())
                 
-                # Button to download results as CSV
-                if st.button("Download as CSV"):
-                    # Check if CSV has already been downloaded
-                    if not st.session_state["csv_downloaded"]:
-                        # Save DataFrame to a CSV file
-                        csv_file_path = "/tmp/query_results.csv"
-                        df.to_csv(csv_file_path, index=False)
-                        
-                        # Mark the CSV as downloaded
-                        st.session_state["csv_downloaded"] = True
-                        
-                        # Download CSV file
-                        st.download_button("Download CSV", data=open(csv_file_path, 'rb'), file_name="query_results.csv")
-                        log_user_action(username, "Downloaded CSV")
-                    else:
-                        st.warning("CSV has already been downloaded.")
+                # Button to download CSV without tracking the download
+                if not df.empty:
+                    csv = df.to_csv(index=False)
+                    st.download_button(
+                        label="Download CSV",
+                        data=csv,
+                        file_name="query_results.csv",
+                        mime="text/csv",
+                        on_click=lambda: log_user_action(username, "Downloaded CSV")  # Log "Downloaded CSV" action
+                    )
+                else:
+                    st.warning("No results found for the query.")
             except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
+                st.error(f"An error occurred: {e}")
