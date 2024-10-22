@@ -7,7 +7,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from google.cloud import bigquery
 import pandas as pd
 import json
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 
 # Streamlit app title
 st.title("BigQuery Data Query with Multi-Column Conditions")
@@ -54,9 +54,6 @@ with st.sidebar:
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
-    # Variable to track if the login action is already logged
-    login_logged = False
-
     # Function to authenticate user using Google Sheets data
     def authenticate_user(username, password):
         for record in data:
@@ -64,18 +61,15 @@ with st.sidebar:
                 return True
         return False
 
-    # Function to log user action to the Google Sheet with GMT+7 timezone
+    # Function to log user action to the Google Sheet
     def log_user_action(username, action):
-        gmt_plus_7 = timezone(timedelta(hours=7))
-        timestamp = datetime.now(gmt_plus_7).strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         tracker_worksheet.append_row([username, action, timestamp])
 
     # Authenticate if user provides credentials
     if authenticate_user(username, password):
         st.success("Login successful!")
-        if not login_logged:
-            log_user_action(username, "Login")
-            login_logged = True  # Ensure login is logged only once
+        log_user_action(username, "Login")
         
         # File uploader for .json file (for BigQuery)
         uploaded_file = st.file_uploader("Upload your service account .json file", type=["json"])
@@ -214,16 +208,17 @@ else:
                 # Display results in Streamlit
                 st.write(df.head())
                 
-                # Button to download the results as a CSV
-                if st.button("Download CSV"):
-                    # Convert DataFrame to CSV
+                # Button to download CSV
+                if not df.empty:
                     csv = df.to_csv(index=False)
-                    
-                    # Provide the CSV file as a download link
-                    st.download_button("Download CSV", csv, "query_results.csv", "text/csv")
-                    
-                    # Log the CSV download action
-                    log_user_action(username, "Downloaded CSV")
+                    st.download_button(
+                        label="Download CSV",
+                        data=csv,
+                        file_name="query_results.csv",
+                        mime="text/csv"
+                    )
+                else:
+                    st.warning("No results to download.")
 
             except Exception as e:
-                st.error(f"Error executing query: {str(e)}")
+                st.error(f"Error executing query: {e}")
