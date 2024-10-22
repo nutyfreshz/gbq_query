@@ -71,6 +71,10 @@ with st.sidebar:
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False
 
+    # Track CSV download in session state
+    if "csv_downloaded" not in st.session_state:
+        st.session_state["csv_downloaded"] = False
+
     # Authenticate if user provides credentials and hasn't logged in yet
     if authenticate_user(username, password):
         if not st.session_state["logged_in"]:
@@ -214,8 +218,21 @@ else:
                 # Display results in Streamlit
                 st.write(df.head())
                 
-                # Button to download CSV without tracking
-                if not df.empty:
-                    st.download_button("Download CSV", data=df.to_csv(index=False), mime='text/csv')
+                # Button to download results as CSV
+                if st.button("Download as CSV"):
+                    # Check if CSV has already been downloaded
+                    if not st.session_state["csv_downloaded"]:
+                        # Save DataFrame to a CSV file
+                        csv_file_path = "/tmp/query_results.csv"
+                        df.to_csv(csv_file_path, index=False)
+                        
+                        # Mark the CSV as downloaded
+                        st.session_state["csv_downloaded"] = True
+                        
+                        # Download CSV file
+                        st.download_button("Download CSV", data=open(csv_file_path, 'rb'), file_name="query_results.csv")
+                        log_user_action(username, "Downloaded CSV")
+                    else:
+                        st.warning("CSV has already been downloaded.")
             except Exception as e:
-                st.error(f"Error running query: {e}")
+                st.error(f"An error occurred: {str(e)}")
