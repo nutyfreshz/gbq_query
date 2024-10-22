@@ -6,6 +6,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from google.cloud import bigquery
 import pandas as pd
+import json
 from datetime import datetime, timezone, timedelta
 
 # Streamlit app title
@@ -45,7 +46,7 @@ data = worksheet.get_all_records()
 action_tracker_sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1UJ89lPfLe2IDtRWOpukdfAzAwK7Cj0Zg2I8KTCDqybk/edit#gid=0")
 tracker_worksheet = action_tracker_sheet.get_worksheet(0)
 
-# Sidebar UI for login
+# Sidebar UI for login and JSON upload
 with st.sidebar:
     st.subheader("Login to access BigQuery Data Query")
 
@@ -67,36 +68,36 @@ with st.sidebar:
             timestamp = datetime.now(gmt_plus_7).strftime("%Y-%m-%d %H:%M:%S")
             tracker_worksheet.append_row([username, action, timestamp])
 
-    # Button to log in with a unique key
-    if st.button("Login", key="login_button"):
-        if authenticate_user(username, password):
-            st.success("Login successful!")
-            log_user_action(username, "Login")  # Log login action
-            st.session_state.logged_in = True  # Update session state
-        else:
-            st.warning("Invalid username or password.")
+    # Authenticate if user provides credentials
+    if authenticate_user(username, password):
+        st.success("Login successful!")
+        # Removed log_user_action for login
+        # log_user_action(username, "Login")  # Log login action
+        
+        # File uploader for .json file (for BigQuery)
+        uploaded_file = st.file_uploader("Upload your service account .json file", type=["json"])
+
+        if uploaded_file is not None:
+            # Save the uploaded .json file temporarily
+            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                temp_file.write(uploaded_file.read())
+                service_account_key_path = temp_file.name
+
+            # Set the environment variable for Google Cloud credentials
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = service_account_key_path
+
+            st.success("Service account JSON file uploaded successfully")
+    else:
+        st.warning("Please login to proceed.")
 
 # Main section: Ensure user login and JSON upload before using the app
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
-if st.session_state.logged_in:
-    # File uploader for .json file (for BigQuery)
-    uploaded_file = st.file_uploader("Upload your service account .json file", type=["json"])
-
-    if uploaded_file is not None:
-        # Save the uploaded .json file temporarily
-        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-            temp_file.write(uploaded_file.read())
-            service_account_key_path = temp_file.name
-
-        # Set the environment variable for Google Cloud credentials
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = service_account_key_path
-
-        st.success("Service account JSON file uploaded successfully")
-
-    # Initialize BigQuery client only if credentials are available
-    if uploaded_file is not None:
+if not authenticate_user(username, password):
+    st.warning("Please login and upload the service account JSON file to proceed.")
+else:
+    if uploaded_file is None:
+        st.warning("Please upload the service account JSON file to proceed.")
+    else:
+        # Initialize BigQuery client only if credentials are available
         client = bigquery.Client()
 
         # Get schema metadata for the target table
@@ -195,7 +196,7 @@ if st.session_state.logged_in:
         st.code(full_query)
 
         # Button to run the query
-        if st.button("Run Query", key="run_query"):
+        if st.button("Run Query"):
             try:
                 # Execute the query
                 query_job = client.query(full_query)
@@ -218,10 +219,7 @@ if st.session_state.logged_in:
                         data=csv,
                         file_name="query_results.csv",
                         mime="text/csv",
-                        key="download_button"  # Unique key for download button
+                        on_click=lambda: log_user_action(username, "Downloaded CSV")  # Log "Downloaded CSV" action
                     )
-
             except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
-else:
-    st.warning("Please log in to access the application.")
+                st.error(f"An error occurred: {e}")
