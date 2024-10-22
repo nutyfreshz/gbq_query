@@ -67,20 +67,18 @@ with st.sidebar:
             timestamp = datetime.now(gmt_plus_7).strftime("%Y-%m-%d %H:%M:%S")
             tracker_worksheet.append_row([username, action, timestamp])
 
-    # Button to log in
-    if st.button("Login"):
+    # Button to log in with a unique key
+    if st.button("Login", key="login_button"):
         if authenticate_user(username, password):
             st.success("Login successful!")
             log_user_action(username, "Login")  # Log login action
+            st.session_state.logged_in = True  # Update session state
         else:
             st.warning("Invalid username or password.")
 
 # Main section: Ensure user login and JSON upload before using the app
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-
-if st.sidebar.button("Login") and authenticate_user(username, password):
-    st.session_state.logged_in = True
 
 if st.session_state.logged_in:
     # File uploader for .json file (for BigQuery)
@@ -197,7 +195,7 @@ if st.session_state.logged_in:
         st.code(full_query)
 
         # Button to run the query
-        if st.button("Run Query"):
+        if st.button("Run Query", key="run_query"):
             try:
                 # Execute the query
                 query_job = client.query(full_query)
@@ -220,7 +218,7 @@ if st.session_state.logged_in:
                         data=csv,
                         file_name="query_results.csv",
                         mime="text/csv",
-                        on_click=lambda: log_user_action(username, "Downloaded CSV")  # Log "Downloaded CSV" action
+                        key="download_button"  # Unique key for download button
                     )
 
             except Exception as e:
