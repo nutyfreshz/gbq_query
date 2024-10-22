@@ -63,7 +63,7 @@ with st.sidebar:
 
     # Function to log specific user actions (Login, Query, CSV Download) with GMT+7 timezone
     def log_user_action(username, action):
-        if action in ["Login", "Ran Query", "Downloaded CSV"]:
+        if action in ["Ran Query", "Downloaded CSV"]:  # Remove "Login" from here
             gmt_plus_7 = timezone(timedelta(hours=7))
             timestamp = datetime.now(gmt_plus_7).strftime("%Y-%m-%d %H:%M:%S")
             tracker_worksheet.append_row([username, action, timestamp])
@@ -71,7 +71,8 @@ with st.sidebar:
     # Authenticate if user provides credentials
     if authenticate_user(username, password):
         st.success("Login successful!")
-        log_user_action(username, "Login")  # Log login action
+        # Removed log_user_action for login
+        # log_user_action(username, "Login")  # Log login action
         
         # File uploader for .json file (for BigQuery)
         uploaded_file = st.file_uploader("Upload your service account .json file", type=["json"])
@@ -220,7 +221,5 @@ else:
                         mime="text/csv",
                         on_click=lambda: log_user_action(username, "Downloaded CSV")  # Log "Downloaded CSV" action
                     )
-                else:
-                    st.warning("No results found for the query.")
             except Exception as e:
                 st.error(f"An error occurred: {e}")
