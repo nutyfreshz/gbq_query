@@ -6,6 +6,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from google.cloud import bigquery
 import pandas as pd
+from datetime import datetime, timezone, timedelta
 
 # Streamlit app title
 st.title("BigQuery Data Query with Multi-Column Conditions")
@@ -44,18 +45,6 @@ data = worksheet.get_all_records()
 action_tracker_sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1UJ89lPfLe2IDtRWOpukdfAzAwK7Cj0Zg2I8KTCDqybk/edit#gid=0")
 tracker_worksheet = action_tracker_sheet.get_worksheet(0)
 
-# Function to authenticate user
-def authenticate_user(username, password):
-    for record in data:
-        if record["username"] == username and record["password"] == password:
-            return True
-    return False
-
-# Log user action
-def log_user_action(username, action):
-    timestamp = pd.Timestamp.now()
-    tracker_worksheet.append_row([username, action, timestamp])
-
 # Sidebar UI for login
 with st.sidebar:
     st.subheader("Login to access BigQuery Data Query")
@@ -64,25 +53,36 @@ with st.sidebar:
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
-    # Button to trigger login authentication
-    login_button = st.button("Login")
+    # Function to authenticate user using Google Sheets data
+    def authenticate_user(username, password):
+        for record in data:
+            if record["username"] == username and record["password"] == password:
+                return True
+        return False
 
-# Check login status
-if 'logged_in' not in st.session_state:
+    # Function to log specific user actions (Login, Query, CSV Download) with GMT+7 timezone
+    def log_user_action(username, action):
+        if action in ["Ran Query", "Downloaded CSV"]:  # Remove "Login" from here
+            gmt_plus_7 = timezone(timedelta(hours=7))
+            timestamp = datetime.now(gmt_plus_7).strftime("%Y-%m-%d %H:%M:%S")
+            tracker_worksheet.append_row([username, action, timestamp])
+
+    # Button to log in
+    if st.button("Login"):
+        if authenticate_user(username, password):
+            st.success("Login successful!")
+            log_user_action(username, "Login")  # Log login action
+        else:
+            st.warning("Invalid username or password.")
+
+# Main section: Ensure user login and JSON upload before using the app
+if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
-if login_button:
-    if authenticate_user(username, password):
-        st.session_state.logged_in = True
-        st.success("Login successful!")
-        log_user_action(username, "Login")  # Log login action
-    else:
-        st.warning("Invalid username or password. Please try again.")
+if st.sidebar.button("Login") and authenticate_user(username, password):
+    st.session_state.logged_in = True
 
-# Main section: Ensure user login before using the app
-if not st.session_state.logged_in:
-    st.warning("Please login to proceed.")
-else:
+if st.session_state.logged_in:
     # File uploader for .json file (for BigQuery)
     uploaded_file = st.file_uploader("Upload your service account .json file", type=["json"])
 
@@ -97,7 +97,8 @@ else:
 
         st.success("Service account JSON file uploaded successfully")
 
-        # Initialize BigQuery client
+    # Initialize BigQuery client only if credentials are available
+    if uploaded_file is not None:
         client = bigquery.Client()
 
         # Get schema metadata for the target table
@@ -115,7 +116,9 @@ else:
         schema = get_table_schema(project_id, dataset_id, table_id)
 
         # Create a dictionary to hold column names and their data types
-        column_type_dict = {field.name: field.field_type for field in schema}
+        column_type_dict = {}
+        for field in schema:
+            column_type_dict[field.name] = field.field_type
 
         # Get a sample of the data (LIMIT 5 rows) to extract the columns
         sample_query = f"""
@@ -219,5 +222,8 @@ else:
                         mime="text/csv",
                         on_click=lambda: log_user_action(username, "Downloaded CSV")  # Log "Downloaded CSV" action
                     )
+
             except Exception as e:
-                st.error(f"An error occurred: {e}")
+                st.error(f"An error occurred: {str(e)}")
+else:
+    st.warning("Please log in to access the application.")
