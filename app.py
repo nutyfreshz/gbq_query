@@ -6,6 +6,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from google.cloud import bigquery
 import pandas as pd
+import json
 
 # Streamlit app title
 st.title("BigQuery Data Query with Multi-Column Conditions")
@@ -40,7 +41,7 @@ sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1PjIsU5dqFQf2
 worksheet = sheet.get_worksheet(0)
 data = worksheet.get_all_records()
 
-# Sidebar UI for login
+# Sidebar UI for login and JSON upload
 with st.sidebar:
     st.subheader("Login to access BigQuery Data Query")
 
@@ -58,138 +59,150 @@ with st.sidebar:
     # Authenticate if user provides credentials
     if authenticate_user(username, password):
         st.success("Login successful!")
+        
+        # File uploader for .json file (for BigQuery)
+        uploaded_file = st.file_uploader("Upload your service account .json file", type=["json"])
 
-        # Set the environment variable for Google Cloud credentials
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = service_account_key_path
+        if uploaded_file is not None:
+            # Save the uploaded .json file temporarily
+            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                temp_file.write(uploaded_file.read())
+                service_account_key_path = temp_file.name
 
-        st.success("Service account JSON file loaded successfully.")
+            # Set the environment variable for Google Cloud credentials
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = service_account_key_path
 
-# Main section: Ensure user login before using the app
+            st.success("Service account JSON file uploaded successfully")
+
+# Main section: Ensure user login and JSON upload before using the app
 if not authenticate_user(username, password):
-    st.warning("Please login to proceed.")
+    st.warning("Please login and upload the service account JSON file to proceed.")
 else:
-    # Initialize BigQuery client only if credentials are available
-    client = bigquery.Client()
-
-    # Get schema metadata for the target table
-    def get_table_schema(project_id, dataset_id, table_id):
-        table_ref = client.dataset(dataset_id).table(table_id)
-        table = client.get_table(table_ref)
-        return table.schema
-
-    # Specify project, dataset, and table
-    project_id = "cdg-mark-cust-prd"
-    dataset_id = "CAS_DS_DATABASE"
-    table_id = "ca_ds_customer_info"
-
-    # Fetch table schema
-    schema = get_table_schema(project_id, dataset_id, table_id)
-
-    # Create a dictionary to hold column names and their data types
-    column_type_dict = {}
-    for field in schema:
-        column_type_dict[field.name] = field.field_type
-
-    # Get a sample of the data (LIMIT 5 rows) to extract the columns
-    sample_query = f"""
-    SELECT *
-    FROM `{project_id}.{dataset_id}.{table_id}`
-    WHERE 1=1
-    LIMIT 5
-    """
-    
-    # Run the query to get the sample data
-    sample_job = client.query(sample_query)
-    sample_results = sample_job.result()
-
-    # Convert the results to a DataFrame
-    cols_df = pd.DataFrame([dict(row) for row in sample_results])
-
-    # Extract the column names from the DataFrame
-    columns_list = cols_df.columns.tolist()
-
-    # Multi-column dropdown for user to select multiple columns
-    selected_columns = st.multiselect("Select columns to add conditions:", columns_list)
-
-    # Dictionary to store selected column and its corresponding values dropdown or range inputs
-    selected_values_dict = {}
-
-    # For each selected column, display a corresponding multiselect for values or range input for numerical columns
-    for column in selected_columns:
-        # Check if the column is numeric based on schema, and handle range input
-        if column_type_dict.get(column) in ['INTEGER', 'FLOAT', 'NUMERIC', 'BIGNUMERIC']:
-            # If column is numeric, provide range input
-            min_val = st.number_input(f"Enter minimum value for {column}:", value=float(cols_df[column].min()), key=f"min_{column}")
-            max_val = st.number_input(f"Enter maximum value for {column}:", value=float(cols_df[column].max()), key=f"max_{column}")
-            selected_values_dict[column] = (min_val, max_val)
-        else:
-            # For non-numerical (categorical) columns, provide a dropdown
-            distinct_values_query = f"""
-            SELECT DISTINCT {column}
-            FROM `{project_id}.{dataset_id}.{table_id}`
-            ORDER BY 1 ASC
-            """
-            distinct_values_job = client.query(distinct_values_query)
-            distinct_values_results = distinct_values_job.result()
-            distinct_values = [row[column] for row in distinct_values_results]
-
-            # Multiselect to select multiple values for the column
-            selected_values_dict[column] = st.multiselect(f"Select values for {column}:", distinct_values)
-
-    # Construct SQL query dynamically based on selected columns and values
-    base_query = f"""
-    SELECT *
-    FROM `{project_id}.{dataset_id}.{table_id}`
-    WHERE 1=1
-    """
-
-    # Build the conditions for the selected columns and values
-    conditions = []
-    for column, values in selected_values_dict.items():
-        if column_type_dict.get(column) in ['INTEGER', 'FLOAT', 'NUMERIC', 'BIGNUMERIC']:
-            # Use range condition for numerical columns
-            min_val, max_val = values
-            conditions.append(f"{column} BETWEEN {min_val} AND {max_val}")
-        else:
-            # Use IN clause for categorical columns
-            if values:  # Only add condition if values are selected
-                values_str = ", ".join([f"'{value}'" for value in values])
-                conditions.append(f"{column} IN ({values_str})")
-
-    # If conditions are added, append them to the base query
-    if conditions:
-        full_query = base_query + " AND " + " AND ".join(conditions)
+    if uploaded_file is None:
+        st.warning("Please upload the service account JSON file to proceed.")
     else:
-        full_query = base_query  # No conditions if none selected
+        # Initialize BigQuery client only if credentials are available
+        client = bigquery.Client()
 
-    # Display the full SQL query
-    st.write("Constructed SQL Query:")
-    st.code(full_query)
+        # Get schema metadata for the target table
+        def get_table_schema(project_id, dataset_id, table_id):
+            table_ref = client.dataset(dataset_id).table(table_id)
+            table = client.get_table(table_ref)
+            return table.schema
 
-    # Button to run the query
-    if st.button("Run Query"):
-        try:
-            # Execute the query
-            query_job = client.query(full_query)
-            results = query_job.result()
+        # Specify project, dataset, and table
+        project_id = "cdg-mark-cust-prd"
+        dataset_id = "CAS_DS_DATABASE"
+        table_id = "ca_ds_customer_info"
 
-            # Convert results to a DataFrame
-            df = pd.DataFrame([dict(row) for row in results])
-            
-            # Display results in Streamlit
-            st.write(df.head())
-            
-            # Button to download CSV
-            if not df.empty:
-                csv = df.to_csv(index=False)
-                st.download_button(
-                    label="Download CSV",
-                    data=csv,
-                    file_name="query_results.csv",
-                    mime="text/csv"
-                )
+        # Fetch table schema
+        schema = get_table_schema(project_id, dataset_id, table_id)
+
+        # Create a dictionary to hold column names and their data types
+        column_type_dict = {}
+        for field in schema:
+            column_type_dict[field.name] = field.field_type
+
+        # Get a sample of the data (LIMIT 5 rows) to extract the columns
+        sample_query = f"""
+        SELECT *
+        FROM `{project_id}.{dataset_id}.{table_id}`
+        WHERE 1=1
+        LIMIT 5
+        """
+        
+        # Run the query to get the sample data
+        sample_job = client.query(sample_query)
+        sample_results = sample_job.result()
+
+        # Convert the results to a DataFrame
+        cols_df = pd.DataFrame([dict(row) for row in sample_results])
+
+        # Extract the column names from the DataFrame
+        columns_list = cols_df.columns.tolist()
+
+        # Multi-column dropdown for user to select multiple columns
+        selected_columns = st.multiselect("Select columns to add conditions:", columns_list)
+
+        # Dictionary to store selected column and its corresponding values dropdown or range inputs
+        selected_values_dict = {}
+
+        # For each selected column, display a corresponding multiselect for values or range input for numerical columns
+        for column in selected_columns:
+            # Check if the column is numeric based on schema, and handle range input
+            if column_type_dict.get(column) in ['INTEGER', 'FLOAT', 'NUMERIC', 'BIGNUMERIC']:
+                # If column is numeric, provide range input
+                min_val = st.number_input(f"Enter minimum value for {column}:", value=float(cols_df[column].min()), key=f"min_{column}")
+                max_val = st.number_input(f"Enter maximum value for {column}:", value=float(cols_df[column].max()), key=f"max_{column}")
+                selected_values_dict[column] = (min_val, max_val)
             else:
-                st.warning("No results to download.")
+                # For non-numerical (categorical) columns, provide a dropdown
+                distinct_values_query = f"""
+                SELECT DISTINCT {column}
+                FROM `{project_id}.{dataset_id}.{table_id}`
+                ORDER BY 1 ASC
+                """
+                distinct_values_job = client.query(distinct_values_query)
+                distinct_values_results = distinct_values_job.result()
+                distinct_values = [row[column] for row in distinct_values_results]
 
-        except Exception as e:
-            st.error(f"Error executing query: {e}")
+                # Multiselect to select multiple values for the column
+                selected_values_dict[column] = st.multiselect(f"Select values for {column}:", distinct_values)
+
+        # Construct SQL query dynamically based on selected columns and values
+        base_query = f"""
+        SELECT *
+        FROM `{project_id}.{dataset_id}.{table_id}`
+        WHERE 1=1
+        """
+
+        # Build the conditions for the selected columns and values
+        conditions = []
+        for column, values in selected_values_dict.items():
+            if column_type_dict.get(column) in ['INTEGER', 'FLOAT', 'NUMERIC', 'BIGNUMERIC']:
+                # Use range condition for numerical columns
+                min_val, max_val = values
+                conditions.append(f"{column} BETWEEN {min_val} AND {max_val}")
+            else:
+                # Use IN clause for categorical columns
+                if values:  # Only add condition if values are selected
+                    values_str = ", ".join([f"'{value}'" for value in values])
+                    conditions.append(f"{column} IN ({values_str})")
+
+        # If conditions are added, append them to the base query
+        if conditions:
+            full_query = base_query + " AND " + " AND ".join(conditions)
+        else:
+            full_query = base_query  # No conditions if none selected
+
+        # Display the full SQL query
+        st.write("Constructed SQL Query:")
+        st.code(full_query)
+
+        # Button to run the query
+        if st.button("Run Query"):
+            try:
+                # Execute the query
+                query_job = client.query(full_query)
+                results = query_job.result()
+
+                # Convert results to a DataFrame
+                df = pd.DataFrame([dict(row) for row in results])
+                
+                # Display results in Streamlit
+                st.write(df.head())
+                
+                # Button to download CSV
+                if not df.empty:
+                    csv = df.to_csv(index=False)
+                    st.download_button(
+                        label="Download CSV",
+                        data=csv,
+                        file_name="query_results.csv",
+                        mime="text/csv"
+                    )
+                else:
+                    st.warning("No results to download.")
+
+            except Exception as e:
+                st.error(f"Error executing query: {e}")
