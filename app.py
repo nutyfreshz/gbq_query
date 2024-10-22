@@ -7,6 +7,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from google.cloud import bigquery
 import pandas as pd
 import json
+from datetime import datetime
 
 # Streamlit app title
 st.title("BigQuery Data Query with Multi-Column Conditions")
@@ -41,6 +42,10 @@ sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1PjIsU5dqFQf2
 worksheet = sheet.get_worksheet(0)
 data = worksheet.get_all_records()
 
+# Tracker sheet link
+action_tracker_sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1UJ89lPfLe2IDtRWOpukdfAzAwK7Cj0Zg2I8KTCDqybk/edit#gid=0")
+tracker_worksheet = action_tracker_sheet.get_worksheet(0)
+
 # Sidebar UI for login and JSON upload
 with st.sidebar:
     st.subheader("Login to access BigQuery Data Query")
@@ -56,9 +61,15 @@ with st.sidebar:
                 return True
         return False
 
+    # Function to log user action to the Google Sheet
+    def log_user_action(username, action):
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        tracker_worksheet.append_row([username, action, timestamp])
+
     # Authenticate if user provides credentials
     if authenticate_user(username, password):
         st.success("Login successful!")
+        log_user_action(username, "Login")
         
         # File uploader for .json file (for BigQuery)
         uploaded_file = st.file_uploader("Upload your service account .json file", type=["json"])
@@ -73,6 +84,8 @@ with st.sidebar:
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = service_account_key_path
 
             st.success("Service account JSON file uploaded successfully")
+    else:
+        st.warning("Please login to proceed.")
 
 # Main section: Ensure user login and JSON upload before using the app
 if not authenticate_user(username, password):
@@ -185,6 +198,9 @@ else:
                 # Execute the query
                 query_job = client.query(full_query)
                 results = query_job.result()
+
+                # Log the query execution action
+                log_user_action(username, "Ran Query")
 
                 # Convert results to a DataFrame
                 df = pd.DataFrame([dict(row) for row in results])
