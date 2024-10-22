@@ -6,7 +6,6 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from google.cloud import bigquery
 import pandas as pd
-from datetime import datetime, timezone, timedelta
 
 # Streamlit app title
 st.title("BigQuery Data Query with Multi-Column Conditions")
@@ -45,7 +44,19 @@ data = worksheet.get_all_records()
 action_tracker_sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1UJ89lPfLe2IDtRWOpukdfAzAwK7Cj0Zg2I8KTCDqybk/edit#gid=0")
 tracker_worksheet = action_tracker_sheet.get_worksheet(0)
 
-# Sidebar UI for login and JSON upload
+# Function to authenticate user
+def authenticate_user(username, password):
+    for record in data:
+        if record["username"] == username and record["password"] == password:
+            return True
+    return False
+
+# Log user action
+def log_user_action(username, action):
+    timestamp = pd.Timestamp.now()
+    tracker_worksheet.append_row([username, action, timestamp])
+
+# Sidebar UI for login
 with st.sidebar:
     st.subheader("Login to access BigQuery Data Query")
 
@@ -54,36 +65,39 @@ with st.sidebar:
     password = st.text_input("Password", type="password")
 
     # Button to trigger login authentication
-    if st.button("Login"):
-        if authenticate_user(username, password):
-            st.success("Login successful!")
-            # Log login action (optional)
-            # log_user_action(username, "Login")  # Uncomment if you want to log login action
-            
-            # File uploader for .json file (for BigQuery)
-            uploaded_file = st.file_uploader("Upload your service account .json file", type=["json"])
+    login_button = st.button("Login")
 
-            if uploaded_file is not None:
-                # Save the uploaded .json file temporarily
-                with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                    temp_file.write(uploaded_file.read())
-                    service_account_key_path = temp_file.name
+# Check login status
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
 
-                # Set the environment variable for Google Cloud credentials
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = service_account_key_path
-
-                st.success("Service account JSON file uploaded successfully")
-        else:
-            st.warning("Invalid username or password. Please try again.")
-
-# Main section: Ensure user login and JSON upload before using the app
-if not authenticate_user(username, password):
-    st.warning("Please login and upload the service account JSON file to proceed.")
-else:
-    if uploaded_file is None:
-        st.warning("Please upload the service account JSON file to proceed.")
+if login_button:
+    if authenticate_user(username, password):
+        st.session_state.logged_in = True
+        st.success("Login successful!")
+        log_user_action(username, "Login")  # Log login action
     else:
-        # Initialize BigQuery client only if credentials are available
+        st.warning("Invalid username or password. Please try again.")
+
+# Main section: Ensure user login before using the app
+if not st.session_state.logged_in:
+    st.warning("Please login to proceed.")
+else:
+    # File uploader for .json file (for BigQuery)
+    uploaded_file = st.file_uploader("Upload your service account .json file", type=["json"])
+
+    if uploaded_file is not None:
+        # Save the uploaded .json file temporarily
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            temp_file.write(uploaded_file.read())
+            service_account_key_path = temp_file.name
+
+        # Set the environment variable for Google Cloud credentials
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = service_account_key_path
+
+        st.success("Service account JSON file uploaded successfully")
+
+        # Initialize BigQuery client
         client = bigquery.Client()
 
         # Get schema metadata for the target table
