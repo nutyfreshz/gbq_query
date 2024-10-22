@@ -7,7 +7,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from google.cloud import bigquery
 import pandas as pd
 import json
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 # Streamlit app title
 st.title("BigQuery Data Query with Multi-Column Conditions")
@@ -61,9 +61,10 @@ with st.sidebar:
                 return True
         return False
 
-    # Function to log user action to the Google Sheet
+    # Function to log user action to the Google Sheet with GMT+7 timezone
     def log_user_action(username, action):
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        gmt_plus_7 = timezone(timedelta(hours=7))
+        timestamp = datetime.now(gmt_plus_7).strftime("%Y-%m-%d %H:%M:%S")
         tracker_worksheet.append_row([username, action, timestamp])
 
     # Authenticate if user provides credentials
@@ -208,7 +209,7 @@ else:
                 # Display results in Streamlit
                 st.write(df.head())
                 
-                # Button to download CSV
+                # Button to download CSV without tracking
                 if not df.empty:
                     csv = df.to_csv(index=False)
                     st.download_button(
