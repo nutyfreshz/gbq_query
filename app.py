@@ -10,7 +10,15 @@ import json
 from datetime import datetime, timezone, timedelta
 
 # Streamlit app title
-st.title("BigQuery Data Query with Multi-Column Conditions")
+st.title("Leads Extraction Dashboard Version 1.0")
+st.markdown(
+    """
+    <h1>#Note!!</h1>
+    <p>## Register to use this web application, please contact moderator.</p>
+    <p>### If output query did not display within 20 mins please copy dynamics SQL code for run manually due to overcomputing resource.</p>
+    """,
+    unsafe_allow_html=True
+)
 
 # Link to the gspread JSON file (service account key)
 json_url = "https://drive.google.com/uc?export=download&id=1h36YKL7ZalJzEVnPF6AXZaV5ugriSYbs"
@@ -48,7 +56,7 @@ tracker_worksheet = action_tracker_sheet.get_worksheet(0)
 
 # Sidebar UI for login and JSON upload
 with st.sidebar:
-    st.subheader("Login to access BigQuery Data Query")
+    st.subheader("Login before extract the leads")
 
     # Input for user and password
     username = st.text_input("Username")
@@ -108,8 +116,8 @@ else:
 
         # Specify project, dataset, and table
         project_id = "cdg-mark-cust-prd"
-        dataset_id = "CAS_DS_DATABASE"
-        table_id = "ca_ds_customer_info"
+        dataset_id = "TEMP_NUTCHAPONG"
+        table_id = "cas_lead_extract_dashboard"
 
         # Fetch table schema
         schema = get_table_schema(project_id, dataset_id, table_id)
@@ -167,7 +175,78 @@ else:
 
         # Construct SQL query dynamically based on selected columns and values
         base_query = f"""
-        SELECT *
+            SELECT DISTINCT member_number
+            , birth_month
+            , age_group
+            , gender
+            , customer_type
+            , nationality
+            , kids_stage
+            , segment
+            , subsegment
+            , cenfinity_status
+            , wealth_segment
+            , life_stages
+            , shopping_cycle
+            , clv_year_stay
+            , omni_status_l1y
+            , ds_nel_type
+            , ds_customer_status
+            , cds_nel_type
+            , cds_customer_status
+            , rbs_nel_type
+            , rbs_customer_status
+            , offline_nel_type
+            , offline_customer_status
+            , scc_nel_type
+            , scc_customer_status
+            , col_nel_type
+            , col_customer_status
+            , most_visit_location
+            , most_visit_province
+            , most_visit_subregion
+            , point_lover_segment
+            , tier_balance
+            , beauty_luxury_segment
+            , beauty_relevance_segment
+            , fashion_luxury_segment
+            , fashion_relevance_segment
+            , home_event_segment
+            , online_shopping_affinity
+            , most_freq_creditcard_bank
+            , the1_creditcard_face
+            , crc_active_l1y
+            , total_crc_spend_l1y
+            , total_crc_visit_l1y
+            , crc_ranking_2023
+            , rfm_segment_ds
+            , rfm_segment_cds
+            , rfm_segment_rbs
+            , commu_cds
+            , is_send_sms_eng_cds
+            , is_send_sms_thai_cds
+            , is_email_cds
+            , is_line_cds
+            , line_cds_uid
+            , is_call_cds
+            , commu_rbs
+            , is_send_sms_eng_rbs
+            , is_send_sms_thai_rbs
+            , is_email_rbs
+            , is_line_rbs
+            , line_rbs_uid
+            , is_call_rbs
+            , commu_t1
+            , is_send_sms_eng
+            , is_send_sms_thai
+            , is_email
+            , is_mobile
+            , have_app
+            , the1_app_user
+            , have_col_app
+            , is_ps
+            , ps_bu_branch
+            , ps_name
         FROM `{project_id}.{dataset_id}.{table_id}`
         WHERE 1=1
         """
@@ -192,7 +271,7 @@ else:
             full_query = base_query  # No conditions if none selected
 
         # Display the full SQL query
-        st.write("Constructed SQL Query:")
+        st.write("Dynamics SQL Query:")
         st.code(full_query)
 
         # Button to run the query
